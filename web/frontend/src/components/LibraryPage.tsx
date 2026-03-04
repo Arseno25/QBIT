@@ -73,6 +73,9 @@ interface LibraryItem {
   uploadedAt: string;
   size: number;
   frameCount: number;
+  downloadCount?: number;
+  starCount?: number;
+  starredByMe?: boolean;
 }
 
 interface Props {
@@ -80,7 +83,7 @@ interface Props {
   apiUrl: string;
 }
 
-type SortMode = 'newest' | 'oldest' | 'az' | 'za';
+type SortMode = 'stars' | 'downloads' | 'newest' | 'oldest' | 'az' | 'za';
 
 function formatSize(b: number): string {
   if (b < 1024) return b + ' B';
@@ -107,7 +110,7 @@ export default function LibraryPage({ user, apiUrl }: Props) {
 
   // Filtering and sorting
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>('newest');
+  const [sortMode, setSortMode] = useState<SortMode>('stars');
 
   // Multi-select
   const [selectMode, setSelectMode] = useState(false);
@@ -117,7 +120,8 @@ export default function LibraryPage({ user, apiUrl }: Props) {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/library`);
+      const sortParam = sortMode === 'stars' ? 'stars' : sortMode === 'downloads' ? 'downloads' : 'newest';
+      const res = await fetch(`${apiUrl}/api/library?sort=${sortParam}`);
       if (res.ok) {
         const data = await res.json();
         setItems(data);
@@ -127,7 +131,7 @@ export default function LibraryPage({ user, apiUrl }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [apiUrl]);
+  }, [apiUrl, sortMode]);
 
   useEffect(() => {
     fetchItems();
@@ -146,6 +150,12 @@ export default function LibraryPage({ user, apiUrl }: Props) {
 
     const sorted = [...filtered];
     switch (sortMode) {
+      case 'stars':
+        sorted.sort((a, b) => (b.starCount ?? 0) - (a.starCount ?? 0) || new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        break;
+      case 'downloads':
+        sorted.sort((a, b) => (b.downloadCount ?? 0) - (a.downloadCount ?? 0) || new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        break;
       case 'newest':
         sorted.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
         break;
@@ -244,6 +254,22 @@ export default function LibraryPage({ user, apiUrl }: Props) {
 
     setUploading(false);
   };
+
+  const handleToggleStar = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/library/${id}/star`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (res.ok) await fetchItems();
+      } catch {
+        // ignore
+      }
+    },
+    [apiUrl, user, fetchItems]
+  );
 
   const handleDelete = async (id: string, filename: string) => {
     if (!confirm(`Delete ${filename}?`)) return;
@@ -410,6 +436,8 @@ export default function LibraryPage({ user, apiUrl }: Props) {
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
           >
+            <option value="stars">Most stars</option>
+            <option value="downloads">Most downloads</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="az">Name A-Z</option>
@@ -519,8 +547,45 @@ export default function LibraryPage({ user, apiUrl }: Props) {
               <div className="library-card-preview">
                 <LazyLibraryPreview apiUrl={apiUrl} id={item.id} />
               </div>
+              {!selectMode && user && (
+                <div className="library-card-star">
+                  <button
+                    type="button"
+                    className={`btn-star-lib${item.starredByMe ? ' starred' : ''}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleToggleStar(item.id);
+                    }}
+                    title={item.starredByMe ? 'Unstar' : 'Star'}
+                    aria-label={item.starredByMe ? 'Unstar' : 'Star'}
+                  >
+                    &#9733;
+                  </button>
+                </div>
+              )}
               <div className="library-card-info">
-                <div className="library-card-name">{item.filename}</div>
+                <div className="library-card-title-row">
+                  <div className="library-card-name">{item.filename}</div>
+                  <div className="library-card-stats">
+                    {(item.starCount ?? 0) > 0 && (
+                      <span className="library-card-stat" title="Stars">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                        <span>{item.starCount}</span>
+                      </span>
+                    )}
+                    {(item.downloadCount ?? 0) > 0 && (
+                      <span className="library-card-stat" title="Downloads">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                        </svg>
+                        <span>{item.downloadCount}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="library-card-meta">
                   {item.frameCount} frames &middot; {formatSize(item.size)}
                 </div>

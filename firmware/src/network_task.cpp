@@ -16,6 +16,11 @@
 #include <ArduinoJson.h>
 #include <ArduinoWebsockets.h>
 #include <PubSubClient.h>
+#if defined(ESP32)
+#include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#endif
 
 // ==========================================================================
 //  Configuration
@@ -32,7 +37,8 @@
 #define WS_API_KEY      ""
 #endif
 #define WS_RECONNECT_MS 5000
-#define WIFI_RECONNECT_TIMEOUT_MS 30000
+#define WIFI_RECONNECT_TIMEOUT_MS 15000
+#define PORTAL_RETRY_INTERVAL_MS  30000    // while AP is up, retry saved WiFi in background every 30s
 
 // Bitmap poke: 1bpp row-major, size = (height_pages) * width, height_pages <= 8
 #define POKE_BMP_MAX_WIDTH  512
@@ -71,6 +77,7 @@ static unsigned long _mqttLastReconnect = 0;
 static bool          _wifiConnected = false;
 static unsigned long _wifiLostMs    = 0;
 static bool          _portalRestartedForReconnect = false;
+static unsigned long _portalRetryAfterMs = 0;   // when to stop portal and retry saved WiFi
 static unsigned long _versionCheckAfterMs = 0;  // run version check after this time
 static unsigned long _tzCheckAfterMs     = 0;  // run timezone detection after this time
 
@@ -234,6 +241,16 @@ static void wsMessage(WebsocketsClient &client, WebsocketsMessage message) {
         mqttPublishPokeEvent(sender, text);
     }
 
+    if (strcmp(msgType, "broadcast") == 0) {
+        const char *sender = doc["sender"] | "QBIT Network";
+        const char *text   = doc["text"]   | "";
+        NetworkEvent evt = {};
+        evt.kind = NetworkEvent::POKE;
+        strncpy(evt.sender, sender, sizeof(evt.sender) - 1);
+        strncpy(evt.text, text, sizeof(evt.text) - 1);
+        xQueueSend(networkEventQueue, &evt, pdMS_TO_TICKS(100));
+    }
+
     if (strcmp(msgType, "claim_request") == 0) {
         const char *userName = doc["userName"] | "Unknown";
         NetworkEvent evt = {};
@@ -283,7 +300,9 @@ static void checkFirmwareVersionOnce() {
         Serial.println("[Version] No version in JSON");
         return;
     }
-    if (strcmp(remoteVer, kQbitVersion) != 0) {
+    const char *remoteNorm = (remoteVer[0] == 'v' || remoteVer[0] == 'V') ? (remoteVer + 1) : remoteVer;
+    const char *localNorm  = (kQbitVersion[0] == 'v' || kQbitVersion[0] == 'V') ? (kQbitVersion + 1) : kQbitVersion;
+    if (strcmp(remoteNorm, localNorm) != 0) {
         updateAvailable = true;
         strncpy(updateAvailableVersion, remoteVer, UPDATE_AVAILABLE_VERSION_LEN - 1);
         updateAvailableVersion[UPDATE_AVAILABLE_VERSION_LEN - 1] = '\0';
@@ -481,8 +500,16 @@ void networkTask(void *param) {
             if (!_portalRestartedForReconnect &&
                 (millis() - _wifiLostMs > WIFI_RECONNECT_TIMEOUT_MS)) {
                 _portalRestartedForReconnect = true;
+                _portalRetryAfterMs = millis() + PORTAL_RETRY_INTERVAL_MS;
                 NW.startPortal();
+                xEventGroupSetBits(connectivityBits, PORTAL_ACTIVE_BIT);
                 Serial.println("[WiFi] Auto-reconnect timeout, restarting AP portal");
+            }
+            // While AP is up, periodically retry saved WiFi in background (AP stays up; e.g. router came back)
+            if (_portalRestartedForReconnect && _portalRetryAfterMs > 0 && millis() >= _portalRetryAfterMs) {
+                _portalRetryAfterMs = millis() + PORTAL_RETRY_INTERVAL_MS;
+                NW.connect();   // use NetWizard's saved credentials (WiFi.reconnect() uses different storage)
+                Serial.println("[WiFi] Portal retry: reconnecting to saved WiFi in background");
             }
         } else {
             if (_wifiLostMs > 0 || !_wifiConnected) {
@@ -503,6 +530,7 @@ void networkTask(void *param) {
                 }
                 if (_portalRestartedForReconnect) {
                     _portalRestartedForReconnect = false;
+                    xEventGroupClearBits(connectivityBits, PORTAL_ACTIVE_BIT);
                     NW.stopPortal();
                     Serial.println("[WiFi] Reconnected, stopping AP portal");
                 }
@@ -544,6 +572,21 @@ void networkTask(void *param) {
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+unsigned long networkGetWifiLostMs() {
+    return _wifiLostMs;
+}
+
+void networkWifiReset() {
+    NW.reset();
+#if defined(ESP32)
+    vTaskDelay(pdMS_TO_TICKS(800));
+    esp_restart();
+#elif defined(ESP8266)
+    delay(800);
+    ESP.restart();
+#endif
 }
 
 // ==========================================================================
