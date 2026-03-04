@@ -20,8 +20,8 @@ services:
       - ADMIN_PORT=3002
       - ADMIN_HOST=0.0.0.0
       # Admin login credentials (auto-generated if not provided)
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-TEST}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-12345678}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - SESSION_SECRET=dev-secret-local-only
       - COOKIE_DOMAIN=localhost
       - FRONTEND_URL=http://localhost:5173
