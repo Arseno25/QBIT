@@ -565,16 +565,32 @@ export default function LibraryPage({ user, apiUrl }: Props) {
                 </div>
               )}
               <div className="library-card-info">
-                <div className="library-card-name">{item.filename}</div>
+                <div className="library-card-title-row">
+                  <div className="library-card-name">{item.filename}</div>
+                  <div className="library-card-stats">
+                    {(item.starCount ?? 0) > 0 && (
+                      <span className="library-card-stat" title="Stars">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                        <span>{item.starCount}</span>
+                      </span>
+                    )}
+                    {(item.downloadCount ?? 0) > 0 && (
+                      <span className="library-card-stat" title="Downloads">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                        </svg>
+                        <span>{item.downloadCount}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="library-card-meta">
                   {item.frameCount} frames &middot; {formatSize(item.size)}
                 </div>
                 <div className="library-card-meta">
                   by {item.uploader} &middot; {formatDate(item.uploadedAt)}
-                </div>
-                <div className="library-card-meta library-card-stats">
-                  {(item.starCount ?? 0) > 0 && <span title="Stars">&#9733; {item.starCount}</span>}
-                  {(item.downloadCount ?? 0) > 0 && <span title="Downloads">&#8659; {item.downloadCount}</span>}
                 </div>
                 {!selectMode && (
                   <div className="library-card-actions">

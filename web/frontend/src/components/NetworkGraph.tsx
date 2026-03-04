@@ -163,7 +163,7 @@ export default function NetworkGraph({
 
     const uptimes = devices.map((d) => now - new Date(d.connectedAt).getTime());
     const maxUptime = Math.max(...uptimes, 1);
-    const userEdgeLength = 160;
+    const userEdgeLength = 200;
 
     // Add or update device nodes
     devices.forEach((d) => {
@@ -189,7 +189,7 @@ export default function NetworkGraph({
       }
       const uptime = now - new Date(d.connectedAt).getTime();
       const ratio = uptime / maxUptime;
-      const edgeLength = 250 - ratio * 170;
+      const edgeLength = 300 - ratio * 180;
       if (nodes.get(d.id)) {
         nodes.update(nodeConfig);
         edges.update({ id: `edge-${d.id}`, length: edgeLength });
