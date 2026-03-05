@@ -124,7 +124,7 @@ export default function NetworkGraph({
         edges: {
           width: 1,
           color: { color: '#444', highlight: '#d32f2f', hover: '#666' },
-          smooth: { type: 'continuous', roundness: 0.5 },
+          smooth: { enabled: true, type: 'continuous', roundness: 0.5 },
         },
         physics: {
           barnesHut: {
