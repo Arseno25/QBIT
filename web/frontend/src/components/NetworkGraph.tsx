@@ -17,6 +17,9 @@ interface Props {
   friendIds?: string[];
   /** All friend pairs (global); edges drawn for pairs where both users are online */
   friendPairs?: Array<{ a: string; b: string }>;
+  /** When a device or user receives a poke, show glow on that node (seq = combo count) */
+  pokeHighlight?: { deviceId?: string; publicUserId?: string; seq: number } | null;
+  onPokeHighlightEnd?: () => void;
   onSelectDevice: (device: Device) => void;
   onSelectUser: (user: OnlineUser) => void;
 }
@@ -25,12 +28,19 @@ interface Props {
 const EDGE_FRIEND_LENGTH = 100;
 const EDGE_OTHER_LENGTH = 180;
 
+const GLOW_COLOR_DEVICE = '#d32f2f';
+const GLOW_COLOR_USER = '#1976d2';
+const GLOW_BASE_MS = 1000;
+const GLOW_COMBO_MS = 200;
+
 export default function NetworkGraph({
   devices,
   onlineUsers,
   currentUserId,
   friendIds = [],
   friendPairs = [],
+  pokeHighlight = null,
+  onPokeHighlightEnd,
   onSelectDevice,
   onSelectUser,
 }: Props) {
@@ -114,7 +124,7 @@ export default function NetworkGraph({
         edges: {
           width: 1,
           color: { color: '#444', highlight: '#d32f2f', hover: '#666' },
-          smooth: false,
+          smooth: { type: 'continuous', roundness: 0.5 },
         },
         physics: {
           barnesHut: {
@@ -339,6 +349,67 @@ export default function NetworkGraph({
       }
     });
   }, [devices, onlineUsers, currentUserId, friendIds, friendPairs]);
+
+  // Poke highlight: glow on node for ~1s; combo = bigger/brighter
+  const glowCleanupRef = useRef<{ nodeId: string; origSize: number; timeout: ReturnType<typeof setTimeout> } | null>(null);
+  useEffect(() => {
+    if (!pokeHighlight || (!pokeHighlight.deviceId && !pokeHighlight.publicUserId)) {
+      if (glowCleanupRef.current) {
+        const { nodeId, origSize, timeout } = glowCleanupRef.current;
+        clearTimeout(timeout);
+        nodesRef.current.update({ id: nodeId, shadow: { enabled: false, size: 0, x: 0, y: 0 }, size: origSize });
+        glowCleanupRef.current = null;
+      }
+      onPokeHighlightEnd?.();
+      return;
+    }
+    const nodeId = pokeHighlight.deviceId != null
+      ? pokeHighlight.deviceId
+      : userNodeId(pokeHighlight.publicUserId!);
+    const nodes = nodesRef.current;
+    const existing = nodes.get(nodeId) as { size?: number } | undefined;
+    if (!existing) {
+      onPokeHighlightEnd?.();
+      return;
+    }
+    if (glowCleanupRef.current && glowCleanupRef.current.nodeId !== nodeId) {
+      const prev = glowCleanupRef.current;
+      clearTimeout(prev.timeout);
+      nodes.update({ id: prev.nodeId, shadow: { enabled: false, size: 0, x: 0, y: 0 }, size: prev.origSize });
+      glowCleanupRef.current = null;
+    }
+    const seq = pokeHighlight.seq;
+    const isUser = pokeHighlight.publicUserId != null;
+    const glowColor = isUser ? GLOW_COLOR_USER : GLOW_COLOR_DEVICE;
+    const [r, g, b] = [parseInt(glowColor.slice(1, 3), 16), parseInt(glowColor.slice(3, 5), 16), parseInt(glowColor.slice(5, 7), 16)];
+    const shadowSize = 10 + seq * 4;
+    const shadowColor = `rgba(${r},${g},${b},${0.4 + Math.min(seq * 0.15, 0.4)})`;
+    const origSize = existing.size ?? 22;
+    const glowSize = origSize + 6 + seq * 2;
+
+    nodes.update({
+      id: nodeId,
+      shadow: { enabled: true, color: shadowColor, size: shadowSize, x: 0, y: 0 },
+      size: glowSize,
+    });
+
+    const duration = GLOW_BASE_MS + seq * GLOW_COMBO_MS;
+    const t = setTimeout(() => {
+      nodes.update({
+        id: nodeId,
+        shadow: { enabled: false, size: 0, x: 0, y: 0 },
+        size: origSize,
+      });
+      glowCleanupRef.current = null;
+      onPokeHighlightEnd?.();
+    }, duration);
+    glowCleanupRef.current = { nodeId, origSize, timeout: t };
+
+    return () => {
+      clearTimeout(t);
+      if (glowCleanupRef.current?.nodeId === nodeId) glowCleanupRef.current = null;
+    };
+  }, [pokeHighlight, onPokeHighlightEnd]);
 
   // Center / fit the view
   const handleFit = useCallback(() => {

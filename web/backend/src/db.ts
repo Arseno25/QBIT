@@ -116,13 +116,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_friends_userId ON friends(userId);
 `);
 
-// User settings (e.g. only friends can poke my QBIT)
+// User settings (e.g. only friends can poke my QBIT, public friend list on graph)
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_settings (
     userId TEXT PRIMARY KEY,
-    onlyFriendsCanPoke INTEGER NOT NULL DEFAULT 0
+    onlyFriendsCanPoke INTEGER NOT NULL DEFAULT 0,
+    publicFriends INTEGER NOT NULL DEFAULT 1
   );
 `);
+try {
+  db.exec('ALTER TABLE user_settings ADD COLUMN publicFriends INTEGER NOT NULL DEFAULT 1');
+} catch {
+  // Column already exists (e.g. after first run)
+}
 
 // Opaque public user id (cannot reverse to Google userId); used in device list, friends API, poke target
 db.exec(`

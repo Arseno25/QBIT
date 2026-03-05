@@ -11,9 +11,9 @@ const stmtAreFriends = db.prepare(
   'SELECT 1 FROM friends WHERE (userId = ? AND friendId = ?) OR (userId = ? AND friendId = ?) LIMIT 1'
 );
 
-const stmtGetSettings = db.prepare('SELECT onlyFriendsCanPoke FROM user_settings WHERE userId = ?');
+const stmtGetSettings = db.prepare('SELECT onlyFriendsCanPoke, publicFriends FROM user_settings WHERE userId = ?');
 const stmtSetSettings = db.prepare(
-  'INSERT INTO user_settings (userId, onlyFriendsCanPoke) VALUES (?, ?) ON CONFLICT(userId) DO UPDATE SET onlyFriendsCanPoke = excluded.onlyFriendsCanPoke'
+  'INSERT INTO user_settings (userId, onlyFriendsCanPoke, publicFriends) VALUES (?, ?, ?) ON CONFLICT(userId) DO UPDATE SET onlyFriendsCanPoke = excluded.onlyFriendsCanPoke, publicFriends = excluded.publicFriends'
 );
 
 export function getFriendIds(userId: string): string[] {
@@ -37,6 +37,28 @@ export function getAllFriendPairs(): Array<{ a: string; b: string }> {
   return pairs;
 }
 
+export function getPublicFriends(userId: string): boolean {
+  const row = stmtGetSettings.get(userId) as { publicFriends?: number } | undefined;
+  return row ? (row.publicFriends ?? 1) !== 0 : true;
+}
+
+export function setPublicFriends(userId: string, value: boolean): void {
+  const row = stmtGetSettings.get(userId) as { onlyFriendsCanPoke?: number } | undefined;
+  const onlyFriendsCanPoke = row ? (row.onlyFriendsCanPoke ?? 0) !== 0 : false;
+  stmtSetSettings.run(userId, onlyFriendsCanPoke ? 1 : 0, value ? 1 : 0);
+}
+
+/** Friend pairs where both users have publicFriends enabled. */
+export function getPublicFriendPairs(): Array<{ a: string; b: string }> {
+  const all = getAllFriendPairs();
+  const publicSet = new Set<string>();
+  const stmt = db.prepare('SELECT userId FROM user_settings WHERE publicFriends = 1');
+  for (const r of (stmt.all() as Array<{ userId: string }>)) {
+    publicSet.add(r.userId);
+  }
+  return all.filter(({ a, b }) => publicSet.has(a) && publicSet.has(b));
+}
+
 export function addFriend(userIdA: string, userIdB: string): void {
   if (userIdA === userIdB) return;
   stmtAddFriend.run(userIdA, userIdB);
@@ -55,10 +77,12 @@ export function areFriends(userIdA: string, userIdB: string): boolean {
 }
 
 export function getOnlyFriendsCanPoke(userId: string): boolean {
-  const row = stmtGetSettings.get(userId) as { onlyFriendsCanPoke: number } | undefined;
-  return row ? row.onlyFriendsCanPoke !== 0 : false;
+  const row = stmtGetSettings.get(userId) as { onlyFriendsCanPoke?: number } | undefined;
+  return row ? (row.onlyFriendsCanPoke ?? 0) !== 0 : false;
 }
 
 export function setOnlyFriendsCanPoke(userId: string, value: boolean): void {
-  stmtSetSettings.run(userId, value ? 1 : 0);
+  const row = stmtGetSettings.get(userId) as { publicFriends?: number } | undefined;
+  const publicFriends = row ? (row.publicFriends ?? 1) !== 0 : true;
+  stmtSetSettings.run(userId, value ? 1 : 0, publicFriends ? 1 : 0);
 }

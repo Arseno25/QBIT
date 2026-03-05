@@ -15,6 +15,8 @@ interface Props {
   onlineUsers?: OnlineUser[];
   onlyFriendsCanPoke?: boolean;
   onOnlyFriendsCanPokeChange?: (value: boolean) => void;
+  publicFriends?: boolean;
+  onPublicFriendsChange?: (value: boolean) => void;
   onRemoveFriend?: (publicUserId: string) => Promise<void>;
 }
 
@@ -113,6 +115,8 @@ export default function PokeDialog({
   onlineUsers = [],
   onlyFriendsCanPoke = false,
   onOnlyFriendsCanPokeChange,
+  publicFriends = true,
+  onPublicFriendsChange,
   onRemoveFriend,
 }: Props) {
   const isMyDevice = !!user && !!device.claimedBy?.publicUserId && device.claimedBy.publicUserId === user.publicUserId;
@@ -231,6 +235,18 @@ export default function PokeDialog({
                       className="poke-setting-switch-input"
                       checked={onlyFriendsCanPoke}
                       onChange={(e) => onOnlyFriendsCanPokeChange(e.target.checked)}
+                    />
+                    <span className="poke-setting-switch-slider" />
+                  </label>
+                )}
+                {onPublicFriendsChange != null && (
+                  <label className="poke-setting-switch">
+                    <span className="poke-setting-switch-label">Show my friend list on the network graph</span>
+                    <input
+                      type="checkbox"
+                      className="poke-setting-switch-input"
+                      checked={publicFriends}
+                      onChange={(e) => onPublicFriendsChange(e.target.checked)}
                     />
                     <span className="poke-setting-switch-slider" />
                   </label>

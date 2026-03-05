@@ -38,6 +38,7 @@ export default function App() {
   const [friendIds, setFriendIds] = useState<string[]>([]);
   const [friendPairs, setFriendPairs] = useState<Array<{ a: string; b: string }>>([]);
   const [onlyFriendsCanPoke, setOnlyFriendsCanPoke] = useState(false);
+  const [publicFriends, setPublicFriends] = useState(true);
   const [notifications, setNotifications] = useState<PokeNotification[]>([]);
   const [showPokeHistory, setShowPokeHistory] = useState(false);
   const [pokeHistoryEntries, setPokeHistoryEntries] = useState<PokeHistoryEntry[]>([]);
@@ -50,6 +51,7 @@ export default function App() {
   const networkBarMouseStartRef = useRef<number | null>(null);
   const pillOpenedByMouseDragRef = useRef(false);
   const [isPillMouseDragging, setIsPillMouseDragging] = useState(false);
+  const [pokeHighlight, setPokeHighlight] = useState<{ deviceId?: string; publicUserId?: string; seq: number } | null>(null);
 
   const openPokeHistoryIfSwipeUp = useCallback((startY: number, endY: number) => {
     if (startY - endY > 28) {
@@ -114,12 +116,19 @@ export default function App() {
   const fetchSettings = useCallback(() => {
     if (!user) {
       setOnlyFriendsCanPoke(false);
+      setPublicFriends(true);
       return;
     }
     fetch(`${API_URL}/api/me/settings`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { onlyFriendsCanPoke: false }))
-      .then((data) => setOnlyFriendsCanPoke(!!data.onlyFriendsCanPoke))
-      .catch(() => setOnlyFriendsCanPoke(false));
+      .then((r) => (r.ok ? r.json() : { onlyFriendsCanPoke: false, publicFriends: true }))
+      .then((data) => {
+        setOnlyFriendsCanPoke(!!data.onlyFriendsCanPoke);
+        setPublicFriends(data.publicFriends !== false);
+      })
+      .catch(() => {
+        setOnlyFriendsCanPoke(false);
+        setPublicFriends(true);
+      });
   }, [user]);
   useEffect(() => {
     fetchFriends();
@@ -144,6 +153,21 @@ export default function App() {
 
     s.on('users:update', (data: OnlineUser[]) => {
       setOnlineUsers(data);
+    });
+
+    s.on('poke:highlight', (data: { deviceId?: string; publicUserId?: string }) => {
+      const { deviceId, publicUserId } = data;
+      setPokeHighlight((prev) => {
+        const same = prev && (
+          (deviceId != null && prev.deviceId === deviceId) ||
+          (publicUserId != null && prev.publicUserId === publicUserId)
+        );
+        return {
+          deviceId,
+          publicUserId,
+          seq: same ? prev!.seq + 1 : 1,
+        };
+      });
     });
 
     s.on('friends:update', () => {
@@ -334,6 +358,8 @@ export default function App() {
                 currentUserId={user?.publicUserId ?? null}
                 friendIds={friendIds}
                 friendPairs={friendPairs}
+                pokeHighlight={pokeHighlight}
+                onPokeHighlightEnd={() => setPokeHighlight(null)}
                 onSelectDevice={handleDeviceSelect}
                 onSelectUser={handleUserSelect}
               />
@@ -440,6 +466,23 @@ export default function App() {
                 body: JSON.stringify({ onlyFriendsCanPoke: value }),
               });
               if (res.ok) setOnlyFriendsCanPoke(value);
+            } catch {
+              // ignore
+            }
+          }}
+          publicFriends={publicFriends}
+          onPublicFriendsChange={async (value) => {
+            try {
+              const res = await fetch(`${API_URL}/api/me/settings`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ publicFriends: value }),
+              });
+              if (res.ok) {
+                setPublicFriends(value);
+                fetchFriendsRef.current();
+              }
             } catch {
               // ignore
             }

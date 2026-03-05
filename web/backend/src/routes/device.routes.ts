@@ -61,6 +61,8 @@ router.post('/poke', requireNotBanned, validate(pokeSchema), (req, res) => {
   }
 
   device.ws.send(JSON.stringify(pokePayload));
+  const io = socketService.getIo();
+  if (io) io.emit('poke:highlight', { deviceId: targetId });
   logger.info({ sender: user.displayName, target: device.name }, 'Poke sent');
   res.json({ ok: true });
 });
@@ -99,6 +101,7 @@ router.post('/poke/user', requireNotBanned, validate(pokeUserSchema), (req, res)
     const s = io.sockets.sockets.get(sid);
     if (s) s.emit('poke', payload);
   }
+  io.emit('poke:highlight', { publicUserId: targetPublicUserId });
 
   logger.info({ sender: sender.displayName, targetUserId }, 'User poke sent');
   res.json({ ok: true });
@@ -191,9 +194,9 @@ router.get('/friends', (req, res) => {
   res.json({ friendIds });
 });
 
-// GET /api/friends/pairs -- all friend pairs (publicUserIds), globally visible (no login required)
+// GET /api/friends/pairs -- friend pairs where both users have "public friends" on (publicUserIds)
 router.get('/friends/pairs', (_req, res) => {
-  const pairs = friendService.getAllFriendPairs();
+  const pairs = friendService.getPublicFriendPairs();
   const friendPairs = pairs.map(({ a, b }) => ({
     a: ensurePublicUserId(a),
     b: ensurePublicUserId(b),
@@ -290,7 +293,8 @@ router.get('/me/settings', (req, res) => {
   }
   const user = req.user as AppUser;
   const onlyFriendsCanPoke = friendService.getOnlyFriendsCanPoke(user.id);
-  res.json({ onlyFriendsCanPoke });
+  const publicFriends = friendService.getPublicFriends(user.id);
+  res.json({ onlyFriendsCanPoke, publicFriends });
 });
 
 // PATCH /api/me/settings
@@ -299,9 +303,13 @@ router.patch('/me/settings', requireNotBanned, validate(meSettingsSchema), (req,
     return res.status(401).json({ error: 'Login required' });
   }
   const user = req.user as AppUser;
-  const { onlyFriendsCanPoke } = req.body;
-  friendService.setOnlyFriendsCanPoke(user.id, onlyFriendsCanPoke);
-  res.json({ onlyFriendsCanPoke });
+  const { onlyFriendsCanPoke, publicFriends } = req.body as { onlyFriendsCanPoke?: boolean; publicFriends?: boolean };
+  if (onlyFriendsCanPoke !== undefined) friendService.setOnlyFriendsCanPoke(user.id, onlyFriendsCanPoke);
+  if (publicFriends !== undefined) friendService.setPublicFriends(user.id, publicFriends);
+  res.json({
+    onlyFriendsCanPoke: friendService.getOnlyFriendsCanPoke(user.id),
+    publicFriends: friendService.getPublicFriends(user.id),
+  });
 });
 
 export default router;

@@ -560,8 +560,13 @@ void displayTask(void *param) {
                     static unsigned long updatePromptStartMs = 0;
                     if (updatePromptStartMs == 0) updatePromptStartMs = now;
                     char curLine[32], latLine[32];
-                    snprintf(curLine, sizeof(curLine), "Current: %s", kQbitVersion);
-                    snprintf(latLine, sizeof(latLine), "Latest: %s", updateAvailableVersion);
+                    // Unify display: both current and latest with leading "v" (add if missing)
+                    snprintf(curLine, sizeof(curLine),
+                        (kQbitVersion[0] == 'v' || kQbitVersion[0] == 'V') ? "Current: %s" : "Current: v%s",
+                        kQbitVersion);
+                    snprintf(latLine, sizeof(latLine),
+                        (updateAvailableVersion[0] == 'v' || updateAvailableVersion[0] == 'V') ? "Latest: %s" : "Latest: v%s",
+                        updateAvailableVersion);
                     showText("[ Update available ]", "", curLine, latLine);
                     if (now - updatePromptStartMs >= UPDATE_PROMPT_MS) {
                         updateAvailable = false;

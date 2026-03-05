@@ -32,9 +32,12 @@ export const friendRequestSchema = z.object({
   deviceIdFull: z.string().min(1).max(256).regex(/^[a-zA-Z0-9:]+$/),
 });
 
-// PATCH /api/me/settings
+// PATCH /api/me/settings (partial: either or both)
 export const meSettingsSchema = z.object({
-  onlyFriendsCanPoke: z.boolean(),
+  onlyFriendsCanPoke: z.boolean().optional(),
+  publicFriends: z.boolean().optional(),
+}).refine((d) => d.onlyFriendsCanPoke !== undefined || d.publicFriends !== undefined, {
+  message: 'At least one of onlyFriendsCanPoke or publicFriends is required',
 });
 
 // DELETE /api/library/batch  &  POST /api/library/batch-download
