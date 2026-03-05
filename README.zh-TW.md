@@ -222,6 +222,26 @@ python tools/gif2qbit.py *.gif
 | `--invert` | 反轉黑白 |
 | `--scale` | 縮放模式：`fit`（預設）、`stretch`、`fit_width`、`fit_height` |
 
+### 將 .qgif 轉換回 GIF
+
+使用內附的反向轉換工具將 .qgif 檔案轉換回標準 GIF 動畫：
+
+```bash
+pip install Pillow
+python tools/qgif2gif.py input.qgif
+python tools/qgif2gif.py input.qgif --invert --scale 4
+python tools/qgif2gif.py *.qgif
+python tools/qgif2gif.py /path/to/qgifs/
+```
+
+選項：
+
+| 參數 | 說明 |
+|---|---|
+| `-o` / `--output` | 輸出檔案路徑（僅限單一檔案模式） |
+| `--invert` | 反轉色彩（黑白互換） |
+| `--scale` | 輸出縮放倍數（預設：1，例如 4 可輸出 512×256） |
+
 ### 將 .qgif 轉換為 C 標頭檔
 
 若要將 .qgif 動畫嵌入韌體作為 PROGMEM 常數（例如待機或開機動畫）：
@@ -445,6 +465,7 @@ pio device monitor              # 開啟序列埠監視器（115200 baud）
 | 工具 | 說明 |
 |---|---|
 | `tools/gif2qbit.py` | 將標準 GIF 動畫轉換為 .qgif 格式 |
+| `tools/qgif2gif.py` | 將 .qgif 檔案轉換回標準 GIF 動畫 |
 | `tools/qgif2header.py` | 將 .qgif 檔案轉換為 C 標頭檔以嵌入 PROGMEM |
 | `tools/simulate-devices.py` | 模擬多台 QBIT 裝置連接至後端進行測試 |
 | `tools/flasher/` | 瀏覽器版韌體燒錄器（部署至 GitHub Pages） |

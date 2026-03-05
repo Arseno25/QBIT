@@ -222,6 +222,26 @@ Options:
 | `--invert` | Invert black/white |
 | `--scale` | Scaling mode: `fit` (default), `stretch`, `fit_width`, `fit_height` |
 
+### Converting .qgif back to GIF
+
+Use the included reverse-conversion tool to convert .qgif files back to standard GIF animations:
+
+```bash
+pip install Pillow
+python tools/qgif2gif.py input.qgif
+python tools/qgif2gif.py input.qgif --invert --scale 4
+python tools/qgif2gif.py *.qgif
+python tools/qgif2gif.py /path/to/qgifs/
+```
+
+Options:
+
+| Flag | Description |
+|---|---|
+| `-o` / `--output` | Output file path (single-file mode only) |
+| `--invert` | Invert colours (swap black and white) |
+| `--scale` | Scale factor for output (default: 1, e.g. 4 for 512×256) |
+
 ### Converting .qgif to C Header
 
 To embed a .qgif animation into firmware as a PROGMEM constant (e.g. for idle or boot animations):
@@ -444,6 +464,7 @@ Custom partition table ([`firmware/partitions.csv`](firmware/partitions.csv))
 | Tool | Description |
 |---|---|
 | `tools/gif2qbit.py` | Convert standard GIF animations to the .qgif format |
+| `tools/qgif2gif.py` | Convert .qgif files back to standard GIF animations |
 | `tools/qgif2header.py` | Convert .qgif files to C header files for PROGMEM embedding |
 | `tools/simulate-devices.py` | Simulate multiple QBIT devices connecting to the backend for testing |
 | `tools/flasher/` | Browser-based firmware flasher (deployed to GitHub Pages) |
