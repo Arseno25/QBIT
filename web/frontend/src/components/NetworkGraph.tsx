@@ -33,6 +33,10 @@ const GLOW_COLOR_USER = '#1976d2';
 const GLOW_RAMP_MS = 120;   // quick brighten
 const GLOW_FADE_MS = 1000;  // then fade back over 1s
 const GLOW_MAX_COMBO = 5;
+const GLOW_SIZE_BASE = 26;
+const GLOW_SIZE_PER_COMBO = 8;
+const GLOW_ALPHA_BASE = 0.7;
+const GLOW_ALPHA_PER_COMBO = 0.08;
 
 export default function NetworkGraph({
   devices,
@@ -426,8 +430,8 @@ export default function NetworkGraph({
         return;
       }
       const elapsed = t - cur.startTime;
-      const peakSize = 18 + cur.combo * 5;
-      const peakAlpha = 0.5 + cur.combo * 0.1;
+      const peakSize = GLOW_SIZE_BASE + cur.combo * GLOW_SIZE_PER_COMBO;
+      const peakAlpha = Math.min(1, GLOW_ALPHA_BASE + cur.combo * GLOW_ALPHA_PER_COMBO);
       let size: number;
       let alpha: number;
       if (elapsed < GLOW_RAMP_MS) {
