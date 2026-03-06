@@ -74,6 +74,19 @@ static uint8_t _lastWifiConnSec = 0xFF;
 // Melody tracking
 static bool _melodyWasPlaying = false;
 
+// Settings menu
+static uint8_t _settingsCursor    = 0;
+static bool    _settingsConfirming = false;
+static bool    _settingsSelected   = false;  // row is "entered" via hold
+
+struct SettingsPending {
+    bool gifSound;
+    bool negativeGif;
+    bool flipMode;
+    bool timeFormat24h;
+};
+static SettingsPending _settingsPending;
+
 // ==========================================================================
 //  State transition helper
 // ==========================================================================
@@ -82,6 +95,96 @@ static void enterState(DisplayState newState) {
     _prevState = _state;
     _state = newState;
     _stateEntryMs = millis();
+}
+
+// ==========================================================================
+//  Settings menu renderer
+// ==========================================================================
+
+static void drawSettingsMenu() {
+    // 6 items: 4 toggles + Save + Exit
+    // Show 4 rows at a time; scroll window follows cursor
+    static const char *labels[6] = {
+        "GIF Sound", "Negative GIF", "Flip mode", "24h Clock",
+        "Save", "Exit"
+    };
+    bool vals[6] = {
+        _settingsPending.gifSound,
+        _settingsPending.negativeGif,
+        _settingsPending.flipMode,
+        _settingsPending.timeFormat24h,
+        false, false
+    };
+
+    // Scroll window: keep cursor visible (4 rows visible, 6 total)
+    uint8_t top = 0;
+    if (_settingsCursor >= 4) top = _settingsCursor - 3;
+
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_6x13_tr);
+
+    for (uint8_t row = 0; row < 4; row++) {
+        uint8_t item = top + row;
+        if (item >= 6) break;
+
+        uint8_t y = (row + 1) * 15;  // y baseline: 15, 30, 45, 60
+        bool isSelected = (item == _settingsCursor);
+
+        // Cursor row: full row inverted
+        if (isSelected) {
+            u8g2.setDrawColor(1);
+            u8g2.drawBox(0, y - 12, 128, 14);
+            u8g2.setDrawColor(0);
+        } else {
+            u8g2.setDrawColor(1);
+        }
+
+        if (item >= 4) {
+            // Save / Exit rows — just draw the label
+            char buf[22];
+            snprintf(buf, sizeof(buf), "  %s", labels[item]);
+            u8g2.drawStr(0, y, buf);
+        } else {
+            const char *val     = vals[item] ? "ON " : "OFF";
+            bool        entered = isSelected && _settingsSelected;
+
+            // Draw label (inherits cursor inversion colour)
+            char labelBuf[18];
+            snprintf(labelBuf, sizeof(labelBuf), "  %-13s", labels[item]);
+            u8g2.drawStr(0, y, labelBuf);
+
+            // ON/OFF badge
+            // x=90: 2 leading spaces (12px) + 13 label chars (78px) = 90px
+            const uint8_t badgeX = 90;
+            if (entered) {
+                // Row is inverted (white bg, black text).
+                // Badge = black box + white text to make ON/OFF visually pop.
+                u8g2.setDrawColor(0);                          // black box
+                u8g2.drawBox(badgeX - 1, y - 12, 20, 14);
+                u8g2.setDrawColor(1);                          // white text
+                u8g2.drawStr(badgeX, y, val);
+                u8g2.setDrawColor(0);  // restore row draw color
+            } else {
+                u8g2.drawStr(badgeX, y, val);
+            }
+        }
+    }
+
+    u8g2.setDrawColor(1);
+    rotateBuffer180();
+    u8g2.sendBuffer();
+}
+
+static void enterSettingsMenu() {
+    _settingsCursor     = 0;
+    _settingsConfirming = false;
+    _settingsSelected   = false;
+    _settingsPending    = { getBuzzerVolume() > 0,
+                            getNegativeGif(),
+                            getFlipMode(),
+                            getTimeFormat24h() };
+    enterState(SETTINGS_MENU);
+    drawSettingsMenu();
 }
 
 // Terminal-style countdown: title, blank line, "AP in Xs", progress bar. Countdown starts when network declares connection lost.
@@ -115,37 +218,6 @@ static void showWifiConnectingProgress(unsigned long nowMs) {
 }
 
 // ==========================================================================
-//  Mute toggle helper (called from any state that supports LONG_PRESS)
-// ==========================================================================
-
-static void doMuteToggle() {
-    enterState(MUTE_FEEDBACK);
-    bool wasMuted = (getBuzzerVolume() == 0);
-    if (wasMuted) {
-        uint8_t saved = getSavedVolume();
-        setBuzzerVolume(saved > 0 ? saved : 100);
-        showText("", "[ UNMUTED ]", "", "");
-        noTone(getPinBuzzer());
-        rtttl::begin(getPinBuzzer(), UNMUTE_MELODY);
-    } else {
-        // Play mute melody BEFORE muting
-        noTone(getPinBuzzer());
-        rtttl::begin(getPinBuzzer(), MUTE_MELODY);
-        while (rtttl::isPlaying()) {
-            rtttl::play();
-            vTaskDelay(pdMS_TO_TICKS(1));
-        }
-        noTone(getPinBuzzer());
-        setSavedVolume(getBuzzerVolume());
-        setBuzzerVolume(0);
-        showText("", "[ MUTED ]", "", "");
-    }
-    // Reset timer so feedback text shows for the full MUTE_FEEDBACK_MS
-    _stateEntryMs = millis();
-    mqttPublishMuteState(!wasMuted);
-}
-
-// ==========================================================================
 //  Show poke history entry (bitmap or text fallback)
 // ==========================================================================
 
@@ -156,11 +228,16 @@ static void showPokeHistoryEntry(uint8_t index) {
         return;
     }
 
-    // Format header: [ MM/DD HH:MM:SS ]
-    char timeBuf[24];
+
+    // Format header: [ MM/DD HH:MM ]
+    char timeBuf[32];
     struct tm ti;
     localtime_r(&rec->timestamp, &ti);
-    strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M:%S ]", &ti);
+    if (getTimeFormat24h()) {
+        strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M ]", &ti);
+    } else {
+        strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %I:%M ]", &ti);
+    }
 
     _historyScrollOffset = 0;
     _historyLastScrollMs = millis();
@@ -428,7 +505,7 @@ void displayTask(void *param) {
                             }
                             break;
                         case LONG_PRESS:
-                            doMuteToggle();
+                            enterSettingsMenu();
                             break;
                         default:
                             break;
@@ -470,7 +547,7 @@ void displayTask(void *param) {
                     } else if (gesture.type == DOUBLE_TAP) {
                         enterState(GIF_PLAYBACK);
                     } else if (gesture.type == LONG_PRESS) {
-                        doMuteToggle();
+                        enterSettingsMenu();
                     }
                     break;
 
@@ -486,7 +563,72 @@ void displayTask(void *param) {
                     } else if (gesture.type == DOUBLE_TAP) {
                         enterState(GIF_PLAYBACK);
                     } else if (gesture.type == LONG_PRESS) {
-                        doMuteToggle();
+                        enterSettingsMenu();
+                    }
+                    break;
+
+                case SETTINGS_MENU:
+                    if (_settingsConfirming) {
+                        if (gesture.type == SINGLE_TAP) {
+                            // Confirmed — apply pending values and save
+                            if (_settingsPending.gifSound) {
+                                uint8_t saved = getSavedVolume();
+                                setBuzzerVolume(saved > 0 ? saved : 100);
+                            } else {
+                                if (getBuzzerVolume() > 0) setSavedVolume(getBuzzerVolume());
+                                setBuzzerVolume(0);
+                            }
+                            setNegativeGif(_settingsPending.negativeGif);
+                            setFlipMode(_settingsPending.flipMode);
+                            setTimeFormat24h(_settingsPending.timeFormat24h);
+                            saveSettings();
+                            showText("[ Saved! ]", "", "Settings saved.", "");
+                            vTaskDelay(pdMS_TO_TICKS(1500));
+                            enterState(GIF_PLAYBACK);
+                        } else if (gesture.type == LONG_PRESS) {
+                            // Cancel — back to menu
+                            _settingsConfirming = false;
+                            drawSettingsMenu();
+                        }
+                    } else if (_settingsSelected) {
+                        // A toggle row is entered — TAP toggles, HOLD exits row
+                        if (gesture.type == SINGLE_TAP) {
+                            switch (_settingsCursor) {
+                                case 0: _settingsPending.gifSound    = !_settingsPending.gifSound;    break;
+                                case 1: _settingsPending.negativeGif = !_settingsPending.negativeGif; break;
+                                case 2: _settingsPending.flipMode    = !_settingsPending.flipMode;    break;
+                                case 3: _settingsPending.timeFormat24h = !_settingsPending.timeFormat24h; break;
+                            }
+                            drawSettingsMenu();
+                        } else if (gesture.type == LONG_PRESS) {
+                            // De-select row
+                            _settingsSelected = false;
+                            drawSettingsMenu();
+                        }
+                    } else {
+                        // Browsing mode
+                        if (gesture.type == SINGLE_TAP) {
+                            // Scroll cursor
+                            _settingsCursor = (_settingsCursor + 1) % 6;
+                            drawSettingsMenu();
+                        } else if (gesture.type == LONG_PRESS) {
+                            // Enter/select highlighted row
+                            if (_settingsCursor == 4) {
+                                // Save — ask confirmation
+                                _settingsConfirming = true;
+                                showText("[ Save Settings? ]",
+                                         "",
+                                         "TAP  = confirm",
+                                         "HOLD = cancel");
+                            } else if (_settingsCursor == 5) {
+                                // Exit — discard changes
+                                enterState(GIF_PLAYBACK);
+                            } else {
+                                // Enter toggle row
+                                _settingsSelected = true;
+                                drawSettingsMenu();
+                            }
+                        }
                     }
                     break;
 
@@ -639,10 +781,14 @@ void displayTask(void *param) {
                                 if (_historyScrollOffset >= (int16_t)virtualW) {
                                     _historyScrollOffset -= (int16_t)virtualW;
                                 }
-                                char timeBuf[24];
+                                char timeBuf[32];
                                 struct tm ti;
                                 localtime_r(&hRec->timestamp, &ti);
-                                strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M:%S ]", &ti);
+                                if (getTimeFormat24h()) {
+                                    strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M ]", &ti);
+                                } else {
+                                    strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %I:%M ]", &ti);
+                                }
                                 showPokeHistoryBitmap(hRec, timeBuf, _historyScrollOffset);
                             } else {
                                 if (_historyTextSenderWidth > 128) {
@@ -659,10 +805,14 @@ void displayTask(void *param) {
                                         _historyTextMessageScrollOffset -= (int16_t)vw;
                                     }
                                 }
-                                char timeBuf[24];
+                                char timeBuf[32];
                                 struct tm ti;
                                 localtime_r(&hRec->timestamp, &ti);
-                                strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M:%S ]", &ti);
+                                if (getTimeFormat24h()) {
+                                    strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %H:%M ]", &ti);
+                                } else {
+                                    strftime(timeBuf, sizeof(timeBuf), "[ %m/%d %I:%M ]", &ti);
+                                }
                                 int16_t sr = (_historyTextSenderWidth > 128) ? _historyTextSenderScrollOffset : 0;
                                 int16_t mr = (_historyTextMessageWidth > 128) ? _historyTextMessageScrollOffset : 0;
                                 showPokeHistoryText(hRec, timeBuf, sr, mr);
@@ -676,6 +826,10 @@ void displayTask(void *param) {
                 if (elapsed >= MUTE_FEEDBACK_MS) {
                     enterState(_prevState == MUTE_FEEDBACK ? GIF_PLAYBACK : _prevState);
                 }
+                break;
+
+            case SETTINGS_MENU:
+                // Idle in settings — no auto-exit; redrawn on gesture only
                 break;
 
             default:

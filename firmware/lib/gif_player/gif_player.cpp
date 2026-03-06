@@ -3,6 +3,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+// Forward declarations -- defined in settings.cpp
+extern bool getFlipMode();
+extern bool getNegativeGif();
+
 extern SemaphoreHandle_t gifPlayerMutex;
 
 // ---------------------------------------------------------------------------
@@ -371,28 +375,32 @@ void gifPlayerTick() {
 // then apply the same rotateBuffer180 post-process as the text pipeline.
 void gifRenderFrame(U8G2 *display, uint8_t *frameData,
                     uint16_t width, uint16_t height) {
-  // Invert in-place so bit=1 means lit pixel for drawBitmap
-  const uint16_t dataLen = (uint16_t)(width / 8) * height;
-  for (uint16_t i = 0; i < dataLen; i++) frameData[i] ^= 0xFF;
+  // Invert polarity unless Negative GIF mode is on
+  if (!getNegativeGif()) {
+    const uint16_t dataLen = (uint16_t)(width / 8) * height;
+    for (uint16_t i = 0; i < dataLen; i++) frameData[i] ^= 0xFF;
+  }
 
   display->clearBuffer();
   display->setDrawColor(1);
   display->drawBitmap(0, 0, width / 8, height, frameData);
 
-  // rotateBuffer180: swap bytes end-to-end, then reverse bits within each byte
-  uint8_t        *buf = display->getBufferPtr();
-  const uint16_t  len = 1024;
-  for (uint16_t i = 0; i < len / 2; i++) {
-    uint8_t tmp      = buf[i];
-    buf[i]           = buf[len - 1 - i];
-    buf[len - 1 - i] = tmp;
-  }
-  for (uint16_t i = 0; i < len; i++) {
-    uint8_t b = buf[i];
-    b = ((b & 0xF0) >> 4) | ((b & 0x0F) << 4);
-    b = ((b & 0xCC) >> 2) | ((b & 0x33) << 2);
-    b = ((b & 0xAA) >> 1) | ((b & 0x55) << 1);
-    buf[i] = b;
+  // Apply rotateBuffer180 unless flip mode skips it
+  if (!getFlipMode()) {
+    uint8_t        *buf = display->getBufferPtr();
+    const uint16_t  len = 1024;
+    for (uint16_t i = 0; i < len / 2; i++) {
+      uint8_t tmp      = buf[i];
+      buf[i]           = buf[len - 1 - i];
+      buf[len - 1 - i] = tmp;
+    }
+    for (uint16_t i = 0; i < len; i++) {
+      uint8_t b = buf[i];
+      b = ((b & 0xF0) >> 4) | ((b & 0x0F) << 4);
+      b = ((b & 0xCC) >> 2) | ((b & 0x33) << 2);
+      b = ((b & 0xAA) >> 1) | ((b & 0x55) << 1);
+      buf[i] = b;
+    }
   }
 
   display->sendBuffer();

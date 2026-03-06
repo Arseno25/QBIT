@@ -25,7 +25,8 @@ enum DisplayState {
     HISTORY_TIME,
     HISTORY_POKE,
     MUTE_FEEDBACK,
-    OFFLINE_STATUS
+    OFFLINE_STATUS,
+    SETTINGS_MENU
 };
 
 // ==========================================================================

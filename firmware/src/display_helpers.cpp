@@ -79,6 +79,7 @@ void setDisplayInvert(bool invert) {
 // ==========================================================================
 
 void rotateBuffer180() {
+    if (getFlipMode()) return;  // flip mode: hardware R2 alone gives the flipped view
     uint8_t *buf = u8g2.getBufferPtr();
     const uint16_t len = 1024;
 
