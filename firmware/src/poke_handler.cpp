@@ -144,9 +144,15 @@ static void drawBitmapToBuffer(const uint8_t *bmpData, uint16_t bmpWidth,
                     int16_t pixelY = yOffset + bmpPage * 8 + bit;
                     if (pixelY < 0 || pixelY >= 64) continue;
 
-                    uint8_t targetPage = pixelY / 8;
-                    uint8_t targetBit  = pixelY % 8;
-                    buf[targetPage * 128 + screenX] |= (1 << targetBit);
+                    // Pre-rotate 180° so that the subsequent rotateBuffer180() call
+                    // un-rotates back to the correct display position. Without this,
+                    // the direct buffer write bypasses U8G2_R2's coordinate transform
+                    // and ends up 180°-flipped after rotateBuffer180().
+                    int16_t hx = 127 - screenX;
+                    int16_t hy = 63 - pixelY;
+                    uint8_t targetPage = (uint8_t)(hy / 8);
+                    uint8_t targetBit  = (uint8_t)(hy % 8);
+                    buf[targetPage * 128 + hx] |= (1 << targetBit);
                 }
             }
         }
