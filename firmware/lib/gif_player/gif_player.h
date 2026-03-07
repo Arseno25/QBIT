@@ -56,9 +56,9 @@ void gifPlayerSetIdleAnimation(const AnimatedGIF *idle);
 void gifPlayerTick();
 
 // Render a raw 128x64 monochrome bitmap to the display.
-// Uses U8G2's drawBitmap() so display rotation (U8G2_R2) is honoured,
-// then applies the same rotateBuffer180 post-process as text.
-// frameData is inverted in-place (caller's RAM buffer, never reused).
+// Uses U8G2 drawBitmap(); rotation follows default R0 and flip-mode setting.
+// frameData may be inverted in-place for polarity — caller must not reuse
+// the buffer for another frame without refilling it first.
 // Shared by both the PROGMEM boot animation and file-based playback.
 void gifRenderFrame(U8G2 *display, uint8_t *frameData,
                     uint16_t width, uint16_t height);

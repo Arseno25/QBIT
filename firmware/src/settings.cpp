@@ -47,7 +47,7 @@ static String  _tzIANA;
 
 
 // Display orientation / GIF options
-static bool _flipMode        = false;
+static bool _flipMode        = true;
 static bool _negativeGif     = false;
 
 // Time format: true = 24h, false = 12h
@@ -146,7 +146,7 @@ void loadSettings() {
 
     // Display / GIF options
 
-    _flipMode      = _prefs.getBool("flipMode",  false);
+    _flipMode      = _prefs.getBool("flipMode",  true);
     _negativeGif   = _prefs.getBool("negGif",    false);
     _timeFormat24h = _prefs.getBool("time24h",   true);
 

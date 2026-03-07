@@ -5,6 +5,7 @@
 #include "app_state.h"
 #include "display_helpers.h"
 #include "time_manager.h"
+#include "settings.h"
 #include "mbedtls/base64.h"
 
 // ==========================================================================
@@ -144,15 +145,19 @@ static void drawBitmapToBuffer(const uint8_t *bmpData, uint16_t bmpWidth,
                     int16_t pixelY = yOffset + bmpPage * 8 + bit;
                     if (pixelY < 0 || pixelY >= 64) continue;
 
-                    // Pre-rotate 180° so that the subsequent rotateBuffer180() call
-                    // un-rotates back to the correct display position. Without this,
-                    // the direct buffer write bypasses U8G2_R2's coordinate transform
-                    // and ends up 180°-flipped after rotateBuffer180().
-                    int16_t hx = 127 - screenX;
-                    int16_t hy = 63 - pixelY;
-                    uint8_t targetPage = (uint8_t)(hy / 8);
-                    uint8_t targetBit  = (uint8_t)(hy % 8);
-                    buf[targetPage * 128 + hx] |= (1 << targetBit);
+                    // With default U8G2_R0: flip mode ON uses 180° rotation, so write
+                    // pre-rotated coords; flip mode OFF uses no rotation, so write directly.
+                    if (getFlipMode()) {
+                        int16_t hx = 127 - screenX;
+                        int16_t hy = 63 - pixelY;
+                        uint8_t targetPage = (uint8_t)(hy / 8);
+                        uint8_t targetBit  = (uint8_t)(hy % 8);
+                        buf[targetPage * 128 + hx] |= (1 << targetBit);
+                    } else {
+                        uint8_t targetPage = (uint8_t)(pixelY / 8);
+                        uint8_t targetBit  = (uint8_t)(pixelY % 8);
+                        buf[targetPage * 128 + screenX] |= (1 << targetBit);
+                    }
                 }
             }
         }

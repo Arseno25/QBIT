@@ -371,8 +371,8 @@ void gifPlayerTick() {
 // gifRenderFrame -- rotation-aware render via U8G2 drawBitmap
 // ---------------------------------------------------------------------------
 // qgif stores 0=lit, 1=dark. U8G2 drawBitmap draws bit=1 as foreground.
-// Invert frameData in-place first, then drawBitmap (respects U8G2_R2),
-// then apply the same rotateBuffer180 post-process as the text pipeline.
+// Invert frameData in-place when needed (caller's buffer; do not reuse before refill).
+// Default U8G2_R0: apply 180 deg buffer rotation only when flip mode is on.
 void gifRenderFrame(U8G2 *display, uint8_t *frameData,
                     uint16_t width, uint16_t height) {
   // Invert polarity unless Negative GIF mode is on
@@ -385,8 +385,8 @@ void gifRenderFrame(U8G2 *display, uint8_t *frameData,
   display->setDrawColor(1);
   display->drawBitmap(0, 0, width / 8, height, frameData);
 
-  // Apply rotateBuffer180 unless flip mode skips it
-  if (!getFlipMode()) {
+  // With default R0: apply 180 rotation only when flip mode is on
+  if (getFlipMode()) {
     uint8_t        *buf = display->getBufferPtr();
     const uint16_t  len = 1024;
     for (uint16_t i = 0; i < len / 2; i++) {

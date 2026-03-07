@@ -24,7 +24,6 @@ enum DisplayState {
     FRIEND_PROMPT,
     HISTORY_TIME,
     HISTORY_POKE,
-    MUTE_FEEDBACK,
     OFFLINE_STATUS,
     SETTINGS_MENU
 };

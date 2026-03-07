@@ -128,9 +128,6 @@ void timeManagerDetectTimezone() {
     }
 }
 
-
-#include "settings.h"
-
 String timeManagerGetFormatted() {
     time_t now = time(nullptr);
     struct tm timeinfo;
@@ -139,7 +136,7 @@ String timeManagerGetFormatted() {
     if (getTimeFormat24h()) {
         strftime(buf, sizeof(buf), "%H:%M", &timeinfo);
     } else {
-        strftime(buf, sizeof(buf), "%I:%M", &timeinfo);
+        strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
     }
     return String(buf);
 }
