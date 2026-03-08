@@ -250,6 +250,9 @@ static unsigned long _gameLastTickMs = 0;
 static bool      _gameOver      = false;
 static uint8_t   _gameScoreTick = 0;
 
+// Game menu
+static uint8_t   _gameMenuCursor = 0;
+
 // --- Background parallax ---
 static const uint8_t GAME_STAR_COUNT = 6;
 static const uint8_t GAME_STAR_Y[6]  = { 5, 12, 8, 18, 4, 15 };
@@ -399,6 +402,62 @@ static void enterGame() {
     updateAvailable = false;  // don't interrupt game with update prompt
     enterState(GAME_RUNNING);
     drawGameFrame();
+}
+
+// ==========================================================================
+//  Game menu (list of available games)
+// ==========================================================================
+
+static const char *GAME_MENU_LABELS[] = {
+    "Endless Runner",
+};
+static const uint8_t GAME_MENU_COUNT  = 1;
+
+static void drawGameMenu() {
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_6x13_tr);
+
+    // Header
+    const char *hdr = "[ Games ]";
+    u8g2.drawStr((128 - u8g2.getStrWidth(hdr)) / 2, 13, hdr);
+    u8g2.drawHLine(0, 16, 128);
+
+    // Scroll window: 3 visible rows, follows cursor
+    uint8_t top = 0;
+    if (_gameMenuCursor >= 3) top = _gameMenuCursor - 2;
+
+    for (uint8_t row = 0; row < 3; row++) {
+        uint8_t item = top + row;
+        if (item >= GAME_MENU_COUNT) break;
+
+        uint8_t y = 25 + row * 13;  // rows at 25, 38, 51 — hint at 62
+        bool isSelected = (item == _gameMenuCursor);
+
+        if (isSelected) {
+            u8g2.setDrawColor(1);
+            u8g2.drawBox(0, y - 12, 128, 14);
+            u8g2.setDrawColor(0);
+        } else {
+            u8g2.setDrawColor(1);
+        }
+
+        char buf[24];
+        snprintf(buf, sizeof(buf), "%-18s", GAME_MENU_LABELS[item]);
+        u8g2.drawStr(6, y, buf);
+    }
+
+    u8g2.setDrawColor(1);
+    const char *hint = "HOLD=play  DBL=back";
+    u8g2.drawStr((128 - u8g2.getStrWidth(hint)) / 2, 62, hint);
+
+    rotateBuffer180();
+    u8g2.sendBuffer();
+}
+
+static void enterGameMenu() {
+    _gameMenuCursor = 0;
+    enterState(GAME_MENU);
+    drawGameMenu();
 }
 
 // ==========================================================================
@@ -1053,8 +1112,8 @@ void displayTask(void *param) {
                                 // Timer
                                 enterTimerSet();
                             } else if (_settingsCursor == 1) {
-                                // Game
-                                enterGame();
+                                // Game menu
+                                enterGameMenu();
                             } else if (_settingsCursor == 6) {
                                 // Save — ask confirmation
                                 _settingsConfirming = true;
@@ -1071,6 +1130,18 @@ void displayTask(void *param) {
                                 drawSettingsMenu();
                             }
                         }
+                    }
+                    break;
+
+                case GAME_MENU:
+                    _stateEntryMs = now;  // reset idle timer
+                    if (gesture.type == SINGLE_TAP) {
+                        _gameMenuCursor = (_gameMenuCursor + 1) % GAME_MENU_COUNT;
+                        drawGameMenu();
+                    } else if (gesture.type == LONG_PRESS) {
+                        if (_gameMenuCursor == 0) enterGame();  // Endless Runner
+                    } else if (gesture.type == DOUBLE_TAP) {
+                        enterSettingsMenu();
                     }
                     break;
 
@@ -1352,6 +1423,12 @@ void displayTask(void *param) {
                 break;
 
             case SETTINGS_MENU:
+                if (elapsed >= SETTINGS_MENU_IDLE_MS) {
+                    enterState(GIF_PLAYBACK);
+                }
+                break;
+
+            case GAME_MENU:
                 if (elapsed >= SETTINGS_MENU_IDLE_MS) {
                     enterState(GIF_PLAYBACK);
                 }

@@ -27,6 +27,7 @@ enum DisplayState {
     MUTE_FEEDBACK,
     OFFLINE_STATUS,
     SETTINGS_MENU,
+    GAME_MENU,
     TIMER_SET,
     TIMER_RUNNING,
     GAME_RUNNING,
