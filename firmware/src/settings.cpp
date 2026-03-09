@@ -189,7 +189,9 @@ void saveSettings() {
     _prefs.putString("tzName",   _tzIANA);
     _prefs.putBool("flipMode",   _flipMode);
     _prefs.putBool("negGif",     _negativeGif);
-    _prefs.putBool("time24h",    _timeFormat24h);    _prefs.putUInt("gameHi",     _gameHighScore);    xSemaphoreGive(_prefsMutex);
+    _prefs.putBool("time24h",    _timeFormat24h);
+    _prefs.putUInt("gameHi",     _gameHighScore);
+    xSemaphoreGive(_prefsMutex);
     Serial.println("Settings saved to NVS");
 }
 
