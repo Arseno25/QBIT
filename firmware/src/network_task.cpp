@@ -503,7 +503,10 @@ static void mqttCallback(char *topic, byte *payload, unsigned int length) {
 }
 
 static void mqttReconnect() {
+    // Only attempt MQTT connect when WiFi is actually connected.
+    // This avoids PubSubClient errors like rc = -2 when there is no network.
     if (!getMqttEnabled() || getMqttHost().length() == 0) return;
+    if (!_wifiConnected || WiFi.status() != WL_CONNECTED) return;
     if (_mqttClient.connected()) return;
 
     unsigned long now = millis();
@@ -652,7 +655,8 @@ void networkTask(void *param) {
         }
 
         // --- MQTT ---
-        if (getMqttEnabled()) {
+        // Only manage MQTT when WiFi is connected; otherwise skip to avoid connection errors.
+        if (getMqttEnabled() && _wifiConnected && WiFi.status() == WL_CONNECTED) {
             if (!_mqttClient.connected()) {
                 xEventGroupClearBits(connectivityBits, MQTT_CONNECTED_BIT);
                 mqttReconnect();
