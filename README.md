@@ -76,7 +76,13 @@ QBIT is a retro robot-style desk companion that works like a personal BB call. O
 - Animations change automatically while QBIT is idle
 
 **On-Device Settings Menu**
-Access the settings menu with a long press. Tap to scroll, long press to enter or toggle. The menu auto-exits after 10 seconds without input. Changes take effect after selecting **[ SAVE ]**.
+Access the settings menu with a long press. The top level has three entries: **TIMER**, **GAME LIBRARY**, and **SETTING**. Tap to scroll, long press to enter. Double-tap from the top level exits the menu. The menu auto-exits after 10 seconds without input. Changes to options under SETTING take effect after selecting **[ SAVE ]**.
+
+| Entry | Description |
+|---|---|
+| TIMER | Countdown timer: set hours/minutes/seconds, then start; when time is up an alarm plays (even if muted). Tap to dismiss or long-press to return to set screen. |
+| GAME LIBRARY | Game list: **T-Rex Runner**, **Flappy Bird**. Long-press to launch a game; tap to scroll. |
+| SETTING | Toggles and clock format (see table below). |
 
 | Setting | Description |
 |---|---|
