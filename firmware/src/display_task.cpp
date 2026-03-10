@@ -14,8 +14,8 @@
 #include "gif_player.h"
 #include "timer_ui.h"
 #include "games/game_menu.h"
-#include "games/trex_runner.h"
-#include "games/flappy_bird.h"
+#include "games/trex_runner/trex_runner.h"
+#include "games/flappy_bird/flappy_bird.h"
 
 #include "gif_types.h"
 #include "sys_scx.h"
