@@ -75,30 +75,29 @@ QBIT is a retro robot-style desk companion that works like a personal BB call. O
 - Plays `.qgif` animations in shuffle mode from the device's local storage
 - Animations change automatically while QBIT is idle
 
-**On-Device Settings Menu**
-Access the settings menu with a long press. The top level has three entries: **TIMER**, **GAME LIBRARY**, and **SETTING**. Tap to scroll, long press to enter. Double-tap from the top level exits the menu. The menu auto-exits after 10 seconds without input. Changes to options under SETTING take effect after selecting **[ SAVE ]**.
-
-| Entry | Description |
-|---|---|
-| TIMER | Countdown timer: set hours/minutes/seconds, then start; when time is up an alarm plays (even if muted). Tap to dismiss or long-press to return to set screen. |
-| GAME LIBRARY | Game list: **T-Rex Runner**, **Flappy Bird**. Long-press to launch a game; tap to scroll. |
-| SETTING | Toggles and clock format (see table below). |
-
-| Setting | Description |
-|---|---|
-| QBIT Sound | Turn buzzer on or off (animations and touch feedback) |
-| GIF Invert | Invert the pixel colours of all animations |
-| Flip Mode | Rotate the display 180° (default orientation is 180°) |
-| Clock Format | Toggle between 12-hour and 24-hour time format |
-
 **Poke Notifications**
 - Receive poke messages from other QBIT users on the network
 - The sender's name and message appear on-screen with a timestamp
 - Poke notifications support various languages: the bitmap is rendered on the web before being sent to the device, so any language can be displayed
 - Double-tap to show the clock; tap again to browse notification history
 
-**Offline Indicator**
-- QBIT displays a visual indicator when it loses its internet connection
+**UI structure**
+
+Long press to open; tap to scroll, long press to enter. Double-tap at top level exits; 10 s idle auto-exits. SETTING changes apply only after **[ SAVE ]**.
+
+```
+ROOT
+├── TIMER          (countdown: set H/M/S, start; alarm on expiry, tap dismiss / long-press back)
+├── GAMES
+│   ├── T-Rex Runner
+│   └── Flappy Bird
+└── SETTING
+    ├── QBIT Sound   (buzzer on/off)
+    ├── GIF Invert   (invert animation colours)
+    ├── Flip Mode    (display 180°)
+    ├── Clock Format (12h / 24h)
+    └── [ SAVE ]
+```
 
 ---
 
