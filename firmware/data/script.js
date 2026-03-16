@@ -707,8 +707,10 @@ pollCurrent();
   var _offCvs    = null;
   var _offCtx    = null;
   var _preCtx    = preview.getContext('2d');
+  var _previewImageData = _preCtx.createImageData(W * 2, H * 2);
   var _running   = false;
   var _paused    = false;
+  var _starting  = false;
   var _timerId   = null;
 
   // Mode + parameters (live-tunable)
@@ -857,7 +859,7 @@ pollCurrent();
 
   // Render the packed frame back onto the preview canvas (2× scale)
   function renderPreview(frame) {
-    var imgData = _preCtx.createImageData(W * 2, H * 2);
+    var imgData = _previewImageData;
     var d = imgData.data;
     for (var y = 0; y < H; y++) {
       for (var x = 0; x < W; x++) {
@@ -926,8 +928,9 @@ pollCurrent();
 
   // optionalMessage: if provided, show as error after stopping (e.g. "busy" or close reason)
   function stop(optionalMessage) {
-    _running = false;
-    _paused = false;
+    _starting = false;
+    _running  = false;
+    _paused   = false;
     if (_timerId)  { clearTimeout(_timerId); _timerId = null; }
     if (_ws)       { _ws.close(); _ws = null; }
     if (_stream)   { _stream.getTracks().forEach(function (t) { t.stop(); }); _stream = null; }
@@ -975,6 +978,7 @@ pollCurrent();
     _ws.onopen = function () {
       _running = true;
       _paused = false;
+      _starting = false;
 
       // Enable mode + params once streaming starts
       setControlsEnabled(true);
@@ -1001,15 +1005,26 @@ pollCurrent();
 
     _ws.onclose = function (evt) {
       // If we already stopped (e.g. from onmessage busy), keep the current message visible.
-      if (!_running) return;
+      if (!_running) {
+        _starting = false;
+        return;
+      }
+      _starting = false;
       var reason = (evt && evt.reason) ? evt.reason : '';
       if (reason) stop(reason);
       else stop();
     };
-    _ws.onerror = function () { showMsg('WebSocket error.', true); stop(); };
+    _ws.onerror = function () {
+      _starting = false;
+      showMsg('WebSocket error.', true);
+      stop();
+    };
   }
 
   function start() {
+    if (_starting || _running) return;
+    _starting = true;
+
     // getUserMedia requires a secure context (HTTPS or localhost).
     // http://qbit.local is blocked by all modern browsers.
     if (!window.isSecureContext) {
@@ -1027,10 +1042,12 @@ pollCurrent();
             + 'Open this page in Chrome and enable the "Insecure origins treated as secure" flag for ' + host + '.';
       }
       showMsg(msg, true);
+      _starting = false;
       return;
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showMsg('Camera API not available in this browser.', true);
+      _starting = false;
       return;
     }
     btnOverlay.classList.add('pulse');
@@ -1062,6 +1079,7 @@ pollCurrent();
     }).catch(function (err) {
       showMsg('Camera denied: ' + (err.message || err), true);
       btnOverlay.classList.remove('hidden');
+      _starting = false;
     });
   }
 

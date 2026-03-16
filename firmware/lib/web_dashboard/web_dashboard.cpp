@@ -568,6 +568,7 @@ static volatile bool       _camFrameNew      = false;
 static SemaphoreHandle_t   _camMutex         = nullptr;
 static volatile int        _camClientCount   = 0;
 static uint32_t            _camActiveClientId = 0;
+static uint32_t            _camLastFrameMs    = 0;
 static void              (*_onCamStart)()    = nullptr;
 static void              (*_onCamStop)()     = nullptr;
 
@@ -599,15 +600,17 @@ static void onCamWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         case WS_EVT_CONNECT: {
             // Allow only one active Web Cam client at a time. Reject new connection
             // if someone is already streaming; do not touch the existing client.
+            // Basic IP subnet check: only allow same /24 as device STA IP.
+#if defined(ESP32) || defined(ESP8266)
+            IPAddress remote = client->remoteIP();
+            IPAddress local  = WiFi.localIP();
+            if ((remote[0] != local[0]) || (remote[1] != local[1]) || (remote[2] != local[2])) {
+                client->close();
+                break;
+            }
+#endif
             if (_camActiveClientId != 0) {
                 client->text("{\"error\":\"busy\",\"message\":\"Web Cam is in use by another client\"}");
-#if defined(ESP32)
-                vTaskDelay(pdMS_TO_TICKS(80));
-#elif defined(ESP8266)
-                delay(80);
-#else
-                (void)0;
-#endif
                 client->close();
                 break;
             }
@@ -620,9 +623,10 @@ static void onCamWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
             if (client->id() == _camActiveClientId) {
                 _camActiveClientId = 0;
                 _camFrameNew = false;
+                _camLastFrameMs = 0;
                 if (_onCamStop) _onCamStop();
+                if (_camClientCount > 0) _camClientCount--;
             }
-            if (_camClientCount > 0) _camClientCount--;
             _camWs.cleanupClients();
             break;
         case WS_EVT_DATA: {
@@ -630,23 +634,21 @@ static void onCamWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
             // Accept frames only from the active client
             if (client->id() != _camActiveClientId) {
                 client->text("{\"error\":\"busy\",\"message\":\"Web Cam is in use by another client\"}");
-#if defined(ESP32)
-                vTaskDelay(pdMS_TO_TICKS(80));
-#elif defined(ESP8266)
-                delay(80);
-#else
-                (void)0;
-#endif
                 client->close();
                 break;
             }
-            // Accept only a complete, unfragmented binary message of exactly 1024 bytes
+            // Rate-limit and accept only a complete, unfragmented binary message of exactly 1024 bytes
+            uint32_t nowMs = millis();
             if (info->final && info->index == 0 &&
                 info->len == QGIF_FRAME_SIZE && info->opcode == WS_BINARY &&
                 len == QGIF_FRAME_SIZE) {
+                if (_camLastFrameMs != 0 && (nowMs - _camLastFrameMs) < 50) {
+                    break;
+                }
                 if (_camMutex && xSemaphoreTake(_camMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
                     memcpy(_camBuf, data, QGIF_FRAME_SIZE);
                     _camFrameNew = true;
+                    _camLastFrameMs = nowMs;
                     xSemaphoreGive(_camMutex);
                 }
             }

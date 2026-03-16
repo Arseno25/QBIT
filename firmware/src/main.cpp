@@ -104,12 +104,18 @@ void setup() {
         []() {
             NetworkEvent evt = {};
             evt.kind = NetworkEvent::CAM_START;
-            xQueueSend(networkEventQueue, &evt, 0);
+            BaseType_t ok = xQueueSend(networkEventQueue, &evt, pdMS_TO_TICKS(10));
+            if (ok != pdPASS) {
+                Serial.println("WARN: failed to enqueue CAM_START");
+            }
         },
         []() {
             NetworkEvent evt = {};
             evt.kind = NetworkEvent::CAM_STOP;
-            xQueueSend(networkEventQueue, &evt, 0);
+            BaseType_t ok = xQueueSend(networkEventQueue, &evt, pdMS_TO_TICKS(10));
+            if (ok != pdPASS) {
+                Serial.println("WARN: failed to enqueue CAM_STOP");
+            }
         }
     );
     server.begin();
